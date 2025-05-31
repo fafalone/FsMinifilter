@@ -36,8 +36,8 @@ The setup is actually pretty simple here. We register a filter for IRP_MJ_CREATE
 **Using this project**
 - Build the driver, always 64bit for 64bit Windows.
 - Copy FsMinifilter.sys and FsMinifilter.inf to the same destination folder.
--Right click FsMinifilter.inf and choose 'Install'. The required registry entries will then be made and the driver copied to System32/drivers/
--This driver is not signed at all, so beyond this point Windows will need to have been booted through the Advanced Boot Menu with the 'Disable driver signature enforcement' option. Future updates will demonstrate the use of test signing.
+- Right click FsMinifilter.inf and choose 'Install'. The required registry entries will then be made and the driver copied to System32/drivers/
+- This driver is not signed at all, so beyond this point Windows will need to have been booted through the Advanced Boot Menu with the 'Disable driver signature enforcement' option. Future updates will demonstrate the use of test signing.
 - If no error has occured, you can start the driver.
 - Open a command prompt as Administrator and enter `sc start FsMinifilter`. 
 - You can now try, hopefully unsuccessfully, to access files named evilfile.txt or run a program named evilprogram.exe.
@@ -48,14 +48,11 @@ https://learn.microsoft.com/en-us/sysinternals/downloads/debugview
 
 - To uninstall the driver, `pnputil /delete-driver "FsMinifilter.inf" /uninstall /force`
 
-**Known issues**
+**Known issues**\
 There's currently several bugs in twinBASIC impacting this project:
--Beta 776+ cannot compile drivers.
--There's an issue with StrPtr to constant strings, so this project continues to use
-    byte arrays for initializing UNICODE_STRINGs.
--There's an issue with VarPtr to 'top level' arrays, so they're currently placed inside a UDT.
-    See the FLT_OPERATION_REGISTRATION declares below.
--Short circuiting operators AndAlso/OrElse currently generated a background call to the API
-    VariantChangeTypeEx, so cannot be used in kernel mode.
+- Beta 776+ cannot compile drivers.
+- There's an issue with StrPtr to constant strings, so this project continues to use byte arrays for initializing UNICODE_STRINGs.
+- There's an issue with VarPtr to 'top level' arrays, so they're currently placed inside a UDT. See the FLT_OPERATION_REGISTRATION declares below.
+- Short circuiting operators AndAlso/OrElse currently generated a background call to the API VariantChangeTypeEx, so cannot be used in kernel mode.
     
 These are minor issues compared to the amazing ability to make working drivers 😄
