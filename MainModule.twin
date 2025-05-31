@@ -1,0 +1,262 @@
+Module MainModule
+/*
+    FsMinifilter - twinBASIC Minifilter Proof of Concept
+    Version 1.0.1
+    by Jon Johnson, based on:
+    https://github.com/apriorit/Protection-Against-Unauthorized-Launch-Minifilter-Driver
+
+    **IMPORTANT:** Use Beta 775 or (slightly) lower to compile until a bug in 776+ is fixed 
+                    that prevents drivers from being compiled.
+                    
+    This is a introduction to writing minifilter drivers in twinBASIC. While hardware drivers
+    and some other types remain impractical, minifilter drivers are quite reasonable to write
+    in tB, and give you powerful kernel mode capabilities for antimalware, system monitoring,
+    access control, and other tasks. This project shows the framework for something actually 
+    useful, as opposed to my initial proof of concept that you could write a driver at all.
+    If you haven't seen that: https://github.com/fafalone/HelloWorldDriver
+    This first part of my planned series deals with the antimalware aspect. It demonstrates
+    how to block a file from running or being accessed at all based on its name. As a basic
+    proof of concept, there's just 2 names and they're hard coded, and the driver isn't set to
+    start with the system or have protection from unloading. There's also no communication with
+    user mode. These will be addressed in the next version.
+
+    There's some additional steps to making a tB driver in tB, and two additional ones compared
+    to when my HelloWorldDriver was released.
+
+    1) Create a new Standard EXE project, then add a .twin Module and delete the form.
+    2) Remove the reference for OLE Automation, add a reference for the tbKMode package or add
+        the files from it to your sources.
+    3) Change the following settings:
+            Startup Object: Unchecked.
+            Project: Native Subsystem: Yes
+            Project: Override Entry Point: Enabled, set to DriverEntry
+            Project: Runtime Binding of DLL Declares: No.
+            Optimizer: Constant Function Folding: Yes
+            Project: Large Address Aware (LAA): Yes
+            Project: Strip PE File Relocation Symbols: No.
+            Project: Enable Address Space Layout Randomization: Yes.
+            
+    **How it works**
+    The setup is actually pretty simple here. We register a filter for IRP_MJ_CREATE, the operation
+    sent when a file is created or opened, and in that filter we check if the name matches, and if it
+    does, change the IO status to STATUS_ACCESS_DENIED.
+
+    **Using this project**
+    -Build the driver, always 64bit for 64bit Windows.
+    -Copy FsMinifilter.sys and FsMinifilter.inf to the same destination folder.
+    -Right click FsMinifilter.inf and choose 'Install'. The required registry entries will then be 
+        made and the driver copied to System32/drivers/
+    -This driver is not signed at all, so beyond this point Windows will need to have been booted through
+     the Advanced Boot Menu with the 'Disable driver signature enforcement' option. Future updates will
+     demonstrate the use of test signing.
+    -If no error has occured, you can start the driver.
+    -Open a command prompt as Administrator and enter 'sc start FsMinifilter'. 
+    -You can now try, hopefully unsuccessfully, to access files named evilfile.txt or run a program  
+        named evilprogram.exe.
+    -You can view messages about that and other status info with DebugView:
+    https://learn.microsoft.com/en-us/sysinternals/downloads/debugview
+    
+
+    -To stop the driver, use 'sc stop FsMinifilter' in the admin prompt.
+
+    -To uninstall the driver, 'pnputil /delete-driver "FsMinifilter.inf" /uninstall /force'
+
+    **Known issues**
+    There's currently several bugs in twinBASIC impacting this project:
+    -Beta 776+ cannot compile drivers.
+    -There's an issue with StrPtr to constant strings, so this project continues to use
+        byte arrays for initializing UNICODE_STRINGs.
+    -There's an issue with VarPtr to 'top level' arrays, so they're currently placed inside a UDT.
+        See the FLT_OPERATION_REGISTRATION declares below.
+    -Short circuiting operators AndAlso/OrElse currently generated a background call to the API
+        VariantChangeTypeEx, so cannot be used in kernel mode.
+        
+    These are minor issues compared to the amazing ability to make working drivers :)
+*/
+    
+    ' Private Const fileNoOpen = "evilfile.txt"
+    ' Private Const fileNoExec = "evilprogram.exe"
+    'Temporary workaround for tB bug:
+    Private Type BinaryString
+        aCH(255) As Integer
+    End Type
+    Private fileNoOpen As BinaryString
+    Private fileNoExec As BinaryString
+    Private ucNoOpen As UNICODE_STRING
+    Private ucNoExecute As UNICODE_STRING
+    Private Declare PtrSafe Sub RtlInitUnicodeString Lib "ntoskrnl.exe" (DestinationString As UNICODE_STRING, SourceString As Any)
+    
+
+    Private Callbacks(1) As FLT_OPERATION_REGISTRATION
+    ' Private ContextRegistration(1) As FLT_CONTEXT_REGISTRATION 
+    Private Type FltCallbackStruct
+        Callback(1) As FLT_OPERATION_REGISTRATION
+    End Type
+    Private CallbacksDbg As FltCallbackStruct
+    
+    Private FilterRegistration As FLT_REGISTRATION
+    Private FilterHandle As LongPtr
+    
+    Private dbgsEntry As String
+    Private dbgsRegOk As String
+    Private dbgsBadFile As String
+    Private dbgsBadProgram As String
+
+    Private Const g_systemProcessId As LongPtr = 4
+
+    [IgnoreWarnings(TB0026)]
+    Public Function DriverEntry(ByRef DriverObject As DRIVER_OBJECT, ByRef RegistryPath As UNICODE_STRING) As NTSTATUS
+        UNREFERENCED_PARAMETER(RegistryPath)
+        InitDefs
+        InitUnicodeStrings
+        CallbacksDbg.Callback(0).MajorFunction = IRP_MJ_CREATE
+        CallbacksDbg.Callback(0).PreOperation = AddressOf FsPreCreate
+        CallbacksDbg.Callback(1).MajorFunction = IRP_MJ_OPERATION_END
+        With FilterRegistration
+            .Size = LenB(FilterRegistration)
+            .Version = FLT_REGISTRATION_VERSION
+            .OperationRegistration = VarPtr(CallbacksDbg.Callback(0).MajorFunction)
+            .FilterUnloadCallback = AddressOf InstanceFilterUnloadCallback
+            .InstanceQueryTeardownCallback = AddressOf InstanceQueryTeardownCallback
+        End With
+        Dim status As NTSTATUS
+
+        status = FltRegisterFilter(DriverObject, FilterRegistration, FilterHandle)
+        DbgPrint1 StrPtr(dbgsRegOk), ByVal status
+        If NT_SUCCESS(status) Then
+            status = FltStartFiltering(FilterHandle)
+            DbgPrint1 StrPtr(dbgsRegOk), ByVal status
+            If NT_SUCCESS(status) Then
+                Return STATUS_SUCCESS
+            End If
+        Else
+            Return status
+        End If
+        FltUnregisterFilter FilterHandle
+        Return status
+    End Function
+    
+    
+    Private Function InstanceFilterUnloadCallback(ByVal Flags As FLT_FILTER_UNLOAD_FLAGS) As NTSTATUS
+        UNREFERENCED_PARAMETER(Flags)
+        If FilterHandle Then
+            FltUnregisterFilter(FilterHandle)
+        End If
+        Return STATUS_SUCCESS
+    End Function
+    
+    Private Function InstanceSetupCallback(FltObjects As FLT_RELATED_OBJECTS, ByVal Flags As FLT_INSTANCE_SETUP_FLAGS, _
+                            ByVal VolumeDeviceType As DEVICE_TYPE, ByVal VolumeFilesystemType As FLT_FILESYSTEM_TYPE) As NTSTATUS
+        
+        UNREFERENCED_PARAMETER(FltObjects)
+        UNREFERENCED_PARAMETER(Flags)
+        UNREFERENCED_PARAMETER(VolumeDeviceType)
+        UNREFERENCED_PARAMETER(VolumeFilesystemType)
+        
+        Return STATUS_SUCCESS
+    End Function
+    
+    Public Function InstanceQueryTeardownCallback(FltObjects As FLT_RELATED_OBJECTS, ByVal Flags As FLT_INSTANCE_QUERY_TEARDOWN_FLAGS) As NTSTATUS
+        UNREFERENCED_PARAMETER(FltObjects)
+        UNREFERENCED_PARAMETER(Flags)
+        Return STATUS_SUCCESS
+    End Function
+    
+    Public Function FsPreCreate(Data As FLT_CALLBACK_DATA, FltObjects As FLT_RELATED_OBJECTS, CompletionContext As LongPtr) As FLT_PREOP_CALLBACK_STATUS
+        
+        UNREFERENCED_PARAMETER(CompletionContext)
+        
+        If (VarPtr(Data) = 0) Or (VarPtr(FltObjects) = 0) Then
+            Return FLT_PREOP_SUCCESS_NO_CALLBACK
+        End If
+        
+        If PsGetCurrentProcessId() = g_systemProcessId Then
+            Return FLT_PREOP_SUCCESS_NO_CALLBACK
+        End If
+        
+        'Skip named pipes, mailslots, and volumes
+        Dim dwFlags As FILE_OBJECT_FLAGS
+        dwFlags = CType(Of FILE_OBJECT)(FltObjects.FileObject).Flags
+        If (dwFlags And (FO_NAMED_PIPE Or FO_MAILSLOT Or FO_VOLUME_OPEN)) Then
+                   Return FLT_PREOP_SUCCESS_NO_CALLBACK
+        End If
+        
+        Dim Iopb As FLT_IO_PARAMETER_BLOCK
+        Iopb = CType(Of FLT_IO_PARAMETER_BLOCK)(Data.Iopb)
+        Dim createParams As FLT_PARAMETERS_Create
+        CopyMemory createParams, Iopb.Parameters(0), LenB(Of FLT_PARAMETERS_Create)
+        
+        'Skip folders, files opened by id (needs separate handling), or paging files.
+        If ((createParams.Options And FILE_DIRECTORY_FILE) <> 0) Or _
+            (FsRtlIsPagingFile(FltObjects.FileObject) <> 0) Or _
+            ((createParams.Options And FILE_OPEN_BY_FILE_ID) <> 0) Then
+            Return FLT_PREOP_SUCCESS_NO_CALLBACK
+        End If
+        
+        Dim fileNameInfo As LongPtr ' PFLT_FILE_NAME_INFORMATION
+        Dim status As NTSTATUS = FltGetFileNameInformation(Data, FLT_FILE_NAME_NORMALIZED Or FLT_FILE_NAME_QUERY_DEFAULT, fileNameInfo)
+        
+        If (NT_SUCCESS(status) = False) Or (fileNameInfo = 0) Then
+            Return FLT_PREOP_SUCCESS_NO_CALLBACK
+        End If
+        
+        status = FltParseFileNameInformation(fileNameInfo)
+        If (NT_SUCCESS(status) = False) Then
+            Return FLT_PREOP_SUCCESS_NO_CALLBACK
+        End If
+        
+        Dim usInfo As UNICODE_STRING
+        usInfo = CType(Of FLT_FILE_NAME_INFORMATION)(fileNameInfo).FinalComponent
+        
+        If usInfo.Length = 0 Then
+            Return FLT_PREOP_SUCCESS_NO_CALLBACK
+        End If
+        
+  
+        If RtlCompareUnicodeString(usInfo, ucNoOpen, 1) = 0 Then
+            DbgPrint1 StrPtr(dbgsBadFile), ucNoOpen
+            Data.IoStatus.Status = STATUS_ACCESS_DENIED
+            Data.IoStatus.Information = IO_REPARSE
+            Return FLT_PREOP_COMPLETE
+        End If
+        
+         If (RtlCompareUnicodeString(usInfo, ucNoExecute, 1) = 0&) And _
+                ((CType(Of IO_SECURITY_CONTEXT)(createParams.SecurityContext).DesiredAccess And FILE_EXECUTE) <> 0&) Then
+            DbgPrint1 StrPtr(dbgsBadProgram), ucNoExecute
+            Data.IoStatus.Status = STATUS_ACCESS_DENIED
+            Data.IoStatus.Information = IO_REPARSE
+            Return FLT_PREOP_COMPLETE
+        End If
+        
+        Return FLT_PREOP_SUCCESS_NO_CALLBACK
+    End Function
+    
+    
+    [IgnoreWarnings(TB0018)]
+    [ConstantFoldable]
+    Public Function ToANSI(sIn As String) As String
+        Return StrConv(sIn, vbFromUnicode)
+    End Function
+    Private Sub InitDefs()
+    SOURCE_FILE = ToANSI("MainModule.twin")
+    dbgsEntry = ToANSI("FsMinifilter: Entry point success")
+    dbgsRegOk = ToANSI("FsMinifilter: Registration status 0x%X")
+    dbgsBadFile = ToANSI("FsMinifilter - Blocked access to unauthorized file: %wZ")
+    dbgsBadProgram = ToANSI("FsMinifilter - Blocked execution of unauthorized program: %wZ")
+
+    End Sub
+    
+    'This won't be needed for long, just a bug with constant strings.
+    Private Sub InitUnicodeStrings()
+        fileNoOpen.aCH(0) = &H65: fileNoOpen.aCH(1) = &H76: fileNoOpen.aCH(2) = &H69: fileNoOpen.aCH(3) = &H6C
+        fileNoOpen.aCH(4) = &H66: fileNoOpen.aCH(5) = &H69: fileNoOpen.aCH(6) = &H6C: fileNoOpen.aCH(7) = &H65
+        fileNoOpen.aCH(8) = &H2E: fileNoOpen.aCH(9) = &H74: fileNoOpen.aCH(10) = &H78: fileNoOpen.aCH(11) = &H74
+        RtlInitUnicodeString ucNoOpen, fileNoOpen
+        fileNoExec.aCH(0) = &H65: fileNoExec.aCH(1) = &H76: fileNoExec.aCH(2) = &H69: fileNoExec.aCH(3) = &H6C
+        fileNoExec.aCH(4) = &H70: fileNoExec.aCH(5) = &H72: fileNoExec.aCH(6) = &H6F: fileNoExec.aCH(7) = &H67
+        fileNoExec.aCH(8) = &H72: fileNoExec.aCH(9) = &H61: fileNoExec.aCH(10) = &H6D: fileNoExec.aCH(11) = &H2E
+        fileNoExec.aCH(12) = &H65: fileNoExec.aCH(13) = &H78: fileNoExec.aCH(14) = &H65
+        RtlInitUnicodeString ucNoExecute, fileNoExec
+    End Sub
+    
+End Module
