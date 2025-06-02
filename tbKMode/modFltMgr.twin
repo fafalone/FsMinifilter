@@ -1,6 +1,5 @@
-Module modFltMgr
-'UPDATED 22 Mar 2025 MOST RECENT
-
+'Update 01 June 2025;  .
+Module modFltMgr 
 Public Type FLT_OPERATION_REGISTRATION
     MajorFunction As Byte
     Flags As Long
@@ -369,6 +368,14 @@ Public Enum FLT_ALLOCATE_CALLBACK_DATA_FLAGS
     FLT_ALLOCATE_CALLBACK_DATA_PREALLOCATE_ALL_MEMORY = &H1
 End Enum
 
+[Description("The following options for the Parameters union are currently defined:\" & vbCrLf & _
+                "FLT_PARAMETERS_Create (IRP_MJ_CREATE)\" & vbCrLf & _
+                "FLT_PARAMETERS_Read (IRP_MJ_READ\" & vbCrLf & _
+                "FLT_PARAMETERS_Write (IRP_MJ_WRITE)\" & vbCrLf & _
+                "FLT_PARAMETERS_SetFileInformation (IRP_MJ_SET_INFORMATION)\" & vbCrLf & _
+                "FLT_PARAMETERS_SetVolumeInformation (IRP_MJ_SET_VOLUME_INFORMATION)\" & vbCrLf & _
+                "FLT_PARAMETERS_DeviceIoControl_Buffered (IRP_MJ_DEVICE_CONTROL or IRP_MJ_INTERNAL_DEVICE_CONTROL, with METHOD_BUFFERED.)\" & vbCrLf & _
+                "FLT_PARAMETERS_Others - A generic version for custom queries.")]
 Public Type FLT_IO_PARAMETER_BLOCK
     '  Fields from IRP
     '  Flags
@@ -388,15 +395,14 @@ Public Type FLT_IO_PARAMETER_BLOCK
     TargetInstance As LongPtr 'PFLT_INSTANCE
     '  Normalized parameters for the operation
     'Parameters As FLT_PARAMETERS
-    [Description("The following options for the Parameters union are currently defined:" & vbCrLf & _
-                    "FLT_PARAMETERS_Create (IRP_MJ_CREATE)" & _
-                    "FLT_PARAMETERS_Read (IRP_MJ_READ)" & _
-                    "FLT_PARAMETERS_Write (IRP_MJ_WRITE)" & _
-                    "FLT_PARAMETERS_SetFileInformation (IRP_MJ_SET_INFORMATION)" & _
-                    "FLT_PARAMETERS_SetVolumeInformation (IRP_MJ_SET_VOLUME_INFORMATION)" & _
-                    "FLT_PARAMETERS_DeviceIoControl_Buffered (IRP_MJ_DEVICE_CONTROL or IRP_MJ_INTERNAL_DEVICE_CONTROL, with METHOD_BUFFERED.)" & _
+    [Description("The following options for the Parameters union are currently defined:\" & vbCrLf & _
+                    "FLT_PARAMETERS_Create (IRP_MJ_CREATE)\" & vbCrLf & _
+                    "FLT_PARAMETERS_Read (IRP_MJ_READ\" & vbCrLf & _
+                    "FLT_PARAMETERS_Write (IRP_MJ_WRITE)\" & vbCrLf & _
+                    "FLT_PARAMETERS_SetFileInformation (IRP_MJ_SET_INFORMATION)\" & vbCrLf & _
+                    "FLT_PARAMETERS_SetVolumeInformation (IRP_MJ_SET_VOLUME_INFORMATION)\" & vbCrLf & _
+                    "FLT_PARAMETERS_DeviceIoControl_Buffered (IRP_MJ_DEVICE_CONTROL or IRP_MJ_INTERNAL_DEVICE_CONTROL, with METHOD_BUFFERED.)\" & vbCrLf & _
                     "FLT_PARAMETERS_Others - A generic version for custom queries.")]
-    
     #If Win64 Then
         Parameters(47) As Byte
     #Else

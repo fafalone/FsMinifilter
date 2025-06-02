@@ -1,13 +1,17 @@
 Module MainModule
 /*
     FsMinifilter - twinBASIC Minifilter Proof of Concept
-    Version 1.0.1
+    Version 1.0.2
     by Jon Johnson, based on:
     https://github.com/apriorit/Protection-Against-Unauthorized-Launch-Minifilter-Driver
 
     **IMPORTANT:** Use Beta 775 or (slightly) lower to compile until a bug in 776+ is fixed 
                     that prevents drivers from being compiled.
-                    
+    
+    **Updates**
+    v1.0.2 (02 Jun 2025) - Bug fix: Memory leak from not releasing filenameinfo.
+    
+    ---------
     This is a introduction to writing minifilter drivers in twinBASIC. While hardware drivers
     and some other types remain impractical, minifilter drivers are quite reasonable to write
     in tB, and give you powerful kernel mode capabilities for antimalware, system monitoring,
@@ -194,22 +198,26 @@ Module MainModule
         End If
         
         Dim fileNameInfo As LongPtr ' PFLT_FILE_NAME_INFORMATION
+        Dim result As FLT_PREOP_CALLBACK_STATUS = FLT_PREOP_SUCCESS_NO_CALLBACK
         Dim status As NTSTATUS = FltGetFileNameInformation(Data, FLT_FILE_NAME_NORMALIZED Or FLT_FILE_NAME_QUERY_DEFAULT, fileNameInfo)
         
         If (NT_SUCCESS(status) = False) Or (fileNameInfo = 0) Then
-            Return FLT_PREOP_SUCCESS_NO_CALLBACK
+            result = FLT_PREOP_SUCCESS_NO_CALLBACK
+           GoTo done
         End If
         
         status = FltParseFileNameInformation(fileNameInfo)
         If (NT_SUCCESS(status) = False) Then
-            Return FLT_PREOP_SUCCESS_NO_CALLBACK
+            result = FLT_PREOP_SUCCESS_NO_CALLBACK
+           GoTo done
         End If
         
         Dim usInfo As UNICODE_STRING
         usInfo = CType(Of FLT_FILE_NAME_INFORMATION)(fileNameInfo).FinalComponent
         
         If usInfo.Length = 0 Then
-            Return FLT_PREOP_SUCCESS_NO_CALLBACK
+            result = FLT_PREOP_SUCCESS_NO_CALLBACK
+           GoTo done
         End If
         
   
@@ -217,7 +225,8 @@ Module MainModule
             DbgPrint1 StrPtr(dbgsBadFile), ucNoOpen
             Data.IoStatus.Status = STATUS_ACCESS_DENIED
             Data.IoStatus.Information = IO_REPARSE
-            Return FLT_PREOP_COMPLETE
+            result = FLT_PREOP_COMPLETE
+           GoTo done
         End If
         
          If (RtlCompareUnicodeString(usInfo, ucNoExecute, 1) = 0&) And _
@@ -225,10 +234,11 @@ Module MainModule
             DbgPrint1 StrPtr(dbgsBadProgram), ucNoExecute
             Data.IoStatus.Status = STATUS_ACCESS_DENIED
             Data.IoStatus.Information = IO_REPARSE
-            Return FLT_PREOP_COMPLETE
+            result = FLT_PREOP_COMPLETE
         End If
-        
-        Return FLT_PREOP_SUCCESS_NO_CALLBACK
+    done:
+        If fileNameInfo Then FltReleaseFileNameInformation(fileNameInfo)
+        Return result
     End Function
     
     
