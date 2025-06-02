@@ -15,20 +15,20 @@ This is a introduction to writing minifilter drivers in twinBASIC. While hardwar
 
 This first part of my planned series deals with the antimalware aspect. It demonstrates how to block a file from running or being accessed at all based on its name. As a basic proof of concept, there's just 2 names and they're hard coded, and the driver isn't set to start with the system or have protection from unloading. There's also no communication with user mode. These will be addressed in the next version.
 
-There's some additional steps to making a tB driver in tB, and two additional ones compared to when my HelloWorldDriver was released.
+There's some additional steps to making a driver in tB, and two additional ones compared to when my HelloWorldDriver was released.
 
 1) Create a new Standard EXE project, then add a .twin Module and delete the form.
 2) Remove the reference for OLE Automation, add a reference for the tbKMode package or add
     the files from it to your sources.
-3) Change the following settings:
-        Startup Object: Unchecked.
-        Project: Native Subsystem: Yes
-        Project: Override Entry Point: Enabled, set to DriverEntry
-        Project: Runtime Binding of DLL Declares: No.
-        Optimizer: Constant Function Folding: Yes
-        Project: Large Address Aware (LAA): Yes
-        Project: Strip PE File Relocation Symbols: No.
-        Project: Enable Address Space Layout Randomization: Yes.
+3) Change the following settings:\
+       - Startup Object: Unchecked.\
+       - Project: Native Subsystem: Yes\
+       - Project: Override Entry Point: Enabled, set to DriverEntry\
+       - Project: Runtime Binding of DLL Declares: No.\
+       - Optimizer: Constant Function Folding: Yes\
+       - Project: Large Address Aware (LAA): Yes\
+       - Project: Strip PE File Relocation Symbols: No.\
+       - Project: Enable Address Space Layout Randomization: Yes.
         
 **How it works**\
 The setup is actually pretty simple here. We register a filter for IRP_MJ_CREATE, the operation sent when a file is created or opened, and in that filter we check if the name matches, and if it does, change the IO status to STATUS_ACCESS_DENIED.
