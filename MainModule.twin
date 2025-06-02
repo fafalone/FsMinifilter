@@ -11,7 +11,7 @@ Module MainModule
     **Updates**
     v1.0.2 (02 Jun 2025) - Bug fix: Memory leak from not releasing filenameinfo.
     
-    ---------
+    ----------
     This is a introduction to writing minifilter drivers in twinBASIC. While hardware drivers
     and some other types remain impractical, minifilter drivers are quite reasonable to write
     in tB, and give you powerful kernel mode capabilities for antimalware, system monitoring,
