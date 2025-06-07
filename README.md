@@ -39,7 +39,7 @@ The setup is actually pretty simple here. We register a filter for IRP_MJ_CREATE
 - This driver is not signed at all, so beyond this point Windows will need to have been booted through the Advanced Boot Menu with the 'Disable driver signature enforcement' option. Future updates will demonstrate the use of test signing.
 - If no error has occured, you can start the driver.
 - Open a command prompt as Administrator and enter `sc start FsMinifilter`. 
-- You can now try, hopefully unsuccessfully, to access files named evilfile.txt or run a program named evilprogram.exe.
+- You can now try, hopefully unsuccessfully, to access files named evilfile.txt or run a program named evilprogram.exe. (The .txt file is blocked from being opened at all; the .exe can be opened for read but not executed.)
 - You can view messages about that and other status info with DebugView:\
 https://learn.microsoft.com/en-us/sysinternals/downloads/debugview
 
