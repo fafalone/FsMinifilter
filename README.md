@@ -8,8 +8,7 @@ https://github.com/apriorit/Protection-Against-Unauthorized-Launch-Minifilter-Dr
 *The file was blocked by a kernel mode minifilter driver.*
 
 >[!IMPORTANT]
->Use Beta 775 or (slightly) lower to compile until a bug in 776+ is fixed 
-                that prevents drivers from being compiled.
+>Update to Beta 796 or newer to use this project. Betas 786-795 cannot compile drivers.
                 
 This is a introduction to writing minifilter drivers in twinBASIC. While hardware drivers and some other types remain impractical, minifilter drivers are quite reasonable to write in tB, and give you powerful kernel mode capabilities for antimalware, system monitoring, access control, and other tasks. This project shows the framework for something actually  useful, as opposed to my initial proof of concept that you could write a driver at all. If you haven't seen that: https://github.com/fafalone/HelloWorldDriver
 
@@ -49,8 +48,7 @@ https://learn.microsoft.com/en-us/sysinternals/downloads/debugview
 - To uninstall the driver, `pnputil /delete-driver "FsMinifilter.inf" /uninstall /force`
 
 **Known issues**\
-There's currently several bugs in twinBASIC impacting this project:
-- Beta 776+ cannot compile drivers.
+There's currently several bugs in twinBASIC impacting this project: 
 - There's an issue with StrPtr to constant strings, so this project continues to use byte arrays for initializing UNICODE_STRINGs.
 - There's an issue with VarPtr to 'top level' arrays, so they're currently placed inside a UDT. See the FLT_OPERATION_REGISTRATION declares below.
 - Short circuiting operators AndAlso/OrElse currently generated a background call to the API VariantChangeTypeEx, so cannot be used in kernel mode.
