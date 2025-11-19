@@ -192,7 +192,7 @@ Module MainModule
         
         'Skip folders, files opened by id (needs separate handling), or paging files.
         If ((createParams.Options And FILE_DIRECTORY_FILE) <> 0) Or _
-            (FsRtlIsPagingFile(FltObjects.FileObject) <> 0) Or _
+            (FsRtlIsPagingFile(ByVal FltObjects.FileObject) <> 0) Or _
             ((createParams.Options And FILE_OPEN_BY_FILE_ID) <> 0) Then
             Return FLT_PREOP_SUCCESS_NO_CALLBACK
         End If
@@ -206,7 +206,7 @@ Module MainModule
            GoTo done
         End If
         
-        status = FltParseFileNameInformation(fileNameInfo)
+        status = FltParseFileNameInformation(ByVal fileNameInfo)
         If (NT_SUCCESS(status) = False) Then
             result = FLT_PREOP_SUCCESS_NO_CALLBACK
            GoTo done
@@ -237,7 +237,7 @@ Module MainModule
             result = FLT_PREOP_COMPLETE
         End If
     done:
-        If fileNameInfo Then FltReleaseFileNameInformation(fileNameInfo)
+        If fileNameInfo Then FltReleaseFileNameInformation(ByVal fileNameInfo)
         Return result
     End Function
     
