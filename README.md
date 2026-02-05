@@ -8,7 +8,7 @@ https://github.com/apriorit/Protection-Against-Unauthorized-Launch-Minifilter-Dr
 *The file was blocked by a kernel mode minifilter driver.*
 
 >[!IMPORTANT]
->Update to Beta 796 or newer to use this project. Betas 786-795 cannot compile drivers.
+>Update to Beta 973 or newer to use this project. Many earlier versions have bugs compiling drivers or have incompatible syntax since the recent major update.
                 
 This is a introduction to writing minifilter drivers in twinBASIC. While hardware drivers and some other types remain impractical, minifilter drivers are quite reasonable to write in tB, and give you powerful kernel mode capabilities for antimalware, system monitoring, access control, and other tasks. This project shows the framework for something actually  useful, as opposed to my initial proof of concept that you could write a driver at all. If you haven't seen that: https://github.com/fafalone/HelloWorldDriver
 
